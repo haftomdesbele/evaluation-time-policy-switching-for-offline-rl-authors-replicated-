@@ -1,0 +1,2 @@
+from .critic_vectorised import ContinuousVectorisedCritic, VectorisedStateValue, DiscreteVectorisedCritic
+from .actor_vectorised import GaussianVectorisedActor, DDPGVectorisedActor, GoalsDDPGActor
