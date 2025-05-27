@@ -4,6 +4,9 @@ run setup.sh to create a virtual environment and install necessary dependancies
 
 - notes.txt provides additional information on modifying libraries to make packages compatible
 
+- we also provide necessary mujoco files, move these to your home directory and rename directory `mujoco` to `.mujoco`
+
+
 ## Running code
 
 To run code, execute `python main.py`
