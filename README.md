@@ -25,11 +25,11 @@ within `main.py` there is the option to run the following algos:
 Please cite our work if you find it useful
 
 ```
-@article{neggatu2025evaluation,
+@inproceedings{neggatu2025evaluation,
   title={Evaluation-Time Policy Switching for Offline Reinforcement Learning},
   author={Neggatu, Natinael Solomon and Houssineau, Jeremie and Montana, Giovanni},
-  journal={arXiv e-prints},
-  pages={arXiv--2503},
+  booktitle={Proceedings of the 24th International Conference on Autonomous Agents and Multiagent Systems},
+  pages={1520--1528},
   year={2025}
 }
 
