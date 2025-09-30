@@ -1,12 +1,22 @@
 # Policy Switching
 
-run setup.sh to create a virtual environment and install necessary dependancies
+1. Run this command to install the OpenGL and OSMesa dependencies:
+sudo apt update
+sudo apt install libosmesa6-dev libgl1-mesa-glx libglfw3 libglfw3-dev patchelf
 
-- notes.txt provides additional information on modifying libraries to make d4rl and gym packages compatible
 
-- we also provide necessary mujoco files, move these to your home directory and rename directory `mujoco` to `.mujoco`
+2.Make sure you have downloaded MuJoCo 2.1.0 and placed it in ~/.mujoco/mujoco210.
 
-- we provide appendix of our work including a list of hyperparams
+mkdir -p ~/.mujoco
+cd ~/.mujoco
+wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz
+tar -xvzf mujoco210-linux-x86_64.tar.gz
+rm mujoco210-linux-x86_64.tar.gz
+
+
+3. Modified from the authors,   these lines of codes for gym in base_agent(evaluate_performance)
+
+conda activate rlenv
 
 ## Running code
 
