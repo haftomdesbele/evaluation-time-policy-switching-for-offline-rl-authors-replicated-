@@ -54,7 +54,13 @@ class BaseAgent(ABC):
 
     def _evaluate_performance(self, env, iteration, config_dict, **kwargs):
 
-        obs = env.reset()[0]
+        #obs = env.reset()[0]
+        reset_result = env.reset()[0]
+        if isinstance(reset_result, tuple) and len(reset_result) == 2:
+            obs, _ = reset_result  # Newer Gym versions return (obs, info)
+        else:
+            obs = reset_result  # Older versions return just obs
+        #above this line is modified to handle different gym versions
         if config_dict['normalise_state']:
             obs = (obs- self.replay_buffer.mean)/self.replay_buffer.std
         else:
@@ -74,7 +80,16 @@ class BaseAgent(ABC):
             act = self.choose_action(obs, deterministic=True, transform=True)['action']
             act = act.cpu().detach().numpy()
 
-            next_obs, reward, done, trunc, info = env.step(act.squeeze())
+            #next_obs, reward, done, trunc, info = env.step(act.squeeze())
+            step_result = env.step(act.squeeze())
+            if len(step_result) == 5:
+                next_obs, reward, done, trunc, info = step_result
+            elif len(step_result) == 4:
+                next_obs, reward, done, info = step_result
+                trunc = False  # Older Gym versions don't have truncation
+            else:
+                raise ValueError(f"Unexpected step result length: {len(step_result)}")
+            #modifed Code is above this line 
             dones = done | trunc
             total_reward += reward
             obs = next_obs

@@ -1,0 +1,12 @@
+torch
+numpy==1.26.4
+tensorboardX
+tensorflow
+seaborn
+pettingzoo
+matplotlib
+stable_baselines3
+git+https://github.com/Farama-Foundation/d4rl@master#egg=d4rl
+patchelf
+cython<3
+wandb

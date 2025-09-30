@@ -40,14 +40,14 @@ if __name__ == '__main__':
                                'eval_counter':10000, ##after how many steps of learning to evaluate offline
                                }
 
-    training_config = {'num_env_steps':1000001,
+    training_config = {'num_env_steps':1000001,#i romove one zero 
                         'online_steps':250001}
 
     machine_config = {'n_processors':2, 
                       'device':'cuda:0' if torch.cuda.is_available() else 'cpu',}
 
     env_id = 'halfcheetah-medium-v2'
-   #env_id = 'antmaze-umaze-diverse-v2'
+    #env_id = 'antmaze-umaze-diverse-v2'
 
     config_dict = {'env':gym.make(env_id),
                    'hash_id':str(hash(time.time())),
@@ -97,12 +97,11 @@ if __name__ == '__main__':
     np.random.seed(seed)
 
 
-    td3_n_offline(config_dict)
+    #td3_n_offline(config_dict)
 
-   #bc_offline(config_dict)
+    #bc_offline(config_dict)
 
-   #combined(config_dict)
+    combined(config_dict)
     
    #plot_online_return(config_dict)
    #plot_online_std(config_dict)
-

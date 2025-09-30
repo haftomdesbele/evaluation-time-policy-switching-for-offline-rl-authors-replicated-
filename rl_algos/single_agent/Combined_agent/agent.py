@@ -51,28 +51,119 @@ class Agent(BaseAgent):
         return bc_action_info
 
 
+    # def _evaluate_performance(self, env, iteration, config_dict, **kwargs):
+    #     obs = env.reset()[0]
+    #     if config_dict['normalise_state']:
+    #         obs = (obs- self.replay_buffer.mean)/self.replay_buffer.std
+
+    #     dones = False
+    #     total_reward = 0
+    #     episode_var = 0
+    #     step = 0 
+
+
+    #     bc_steps = 0
+    #     total_steps = 0
+
+    #     critic_std_sum = 0 
+
+    #     bc_critic_val = 0
+    #     critic_val = 0
+
+    #     while not dones:
+    #         obs = obs[np.newaxis,np.newaxis]
+            
+    #         act = self.choose_action(obs, deterministic=True, transform=True)['action']
+    #         a = act.cpu().detach().numpy()
+
+    #         total_steps += 1
+
+    #         np_act = a
+
+    #         if config_dict['policy_stitch']:
+    #             bc_act_info = self.choose_bc_action(obs, deterministic=True)
+    #             bc_act_std = bc_act_info.get('action_std',None)
+    #             bc_act = bc_act_info['action']
+
+
+    #             with torch.no_grad():
+
+    #                 torch_obs = torch.tensor(obs,dtype=torch.float).to(device=self.device)
+    #                 if self.total_reset:
+    #                     critic_std_sum += self.critic(torch_obs, act).std()
+
+    #                 bc_value = self.critic(torch_obs,bc_act)
+    #                 critic_value = self.critic(torch_obs,act)
+    #                 if critic_value.numel() > 1:
+    #                     critic_std = critic_value.std()
+    #                 else:
+    #                     critic_std = torch.tensor(0.0, device=critic_value.device)
+
+    #                 critic_std_sum += critic_std
+    #                 #critic_std_sum += critic_value.std()
+
+    #             thresh_val = critic_value.median() - self.replay_buffer.std_scale * critic_std
+    #             #thresh_val = critic_value.median()-self.replay_buffer.std_scale*critic_value.std()
+    #             bc_thresh_val = bc_value.median()
+
+    #             critic_val += thresh_val
+    #             bc_critic_val += bc_thresh_val
+
+    #             if bc_thresh_val > thresh_val:
+    #                 bc_steps+=1
+    #                 act = bc_act
+    #                 np_act = act.cpu().detach().numpy()
+    #         else:
+    #             with torch.no_grad():
+    #                 torch_obs = torch.tensor(obs,dtype=torch.float).to(device=self.device)
+    #                 critic_value = self.critic(torch_obs,act)
+    #                 critic_std_sum += critic_value.std()
+
+    #         #next_obs, reward, done, trunc, info = env.step(np_act.squeeze())
+    #         step_result = env.step(np_act.squeeze())
+
+    #         if len(step_result) == 5:
+    #             next_obs, reward, terminated, truncated, info = step_result
+    #             done = terminated or truncated
+    #         else:
+    #             next_obs, reward, done, info = step_result
+    #             trunc= False
+    #         dones = done | trunc
+    #         total_reward += reward
+
+    #         obs = next_obs
+    #         if config_dict['normalise_state']:
+    #             obs = (obs - self.replay_buffer.mean)/self.replay_buffer.std
+
+
+    #     mean_critic_std = (critic_std_sum/total_steps).detach().cpu().item()
+    #     print('mean critic_std over episode:',critic_std_sum/total_steps)
+    #     avg_bc = bc_steps/total_steps*100
+    #     return total_reward, avg_bc, mean_critic_std
     def _evaluate_performance(self, env, iteration, config_dict, **kwargs):
+        from collections import deque
+
         obs = env.reset()[0]
         if config_dict['normalise_state']:
-            obs = (obs- self.replay_buffer.mean)/self.replay_buffer.std
+            obs = (obs - self.replay_buffer.mean) / self.replay_buffer.std
 
         dones = False
         total_reward = 0
-        episode_var = 0
-        step = 0 
-
+        step = 0
 
         bc_steps = 0
         total_steps = 0
 
-        critic_std_sum = 0 
+        # We'll accumulate recent critic medians in a small window to compute a running std.
+        recent_critic_medians = deque(maxlen=20)  # window size: 20 (tunable)
+        critic_std_sum = 0.0
 
-        bc_critic_val = 0
-        critic_val = 0
+        bc_critic_val = 0.0
+        critic_val_accum = 0.0
 
         while not dones:
-            obs = obs[np.newaxis,np.newaxis]
-            
+            obs = obs[np.newaxis, np.newaxis]
+
             act = self.choose_action(obs, deterministic=True, transform=True)['action']
             a = act.cpu().detach().numpy()
 
@@ -82,49 +173,109 @@ class Agent(BaseAgent):
 
             if config_dict['policy_stitch']:
                 bc_act_info = self.choose_bc_action(obs, deterministic=True)
-                bc_act_std = bc_act_info.get('action_std',None)
+                bc_act_std = bc_act_info.get('action_std', None)
                 bc_act = bc_act_info['action']
 
-
                 with torch.no_grad():
+                    torch_obs = torch.tensor(obs, dtype=torch.float).to(device=self.device)
 
-                    torch_obs = torch.tensor(obs,dtype=torch.float).to(device=self.device)
-                    if self.total_reset:
-                        critic_std_sum += self.critic(torch_obs, act).std()
+                    # critic(...) may return a tensor; we compute a scalar summary (median)
+                    bc_value = self.critic(torch_obs, bc_act)
+                    critic_value = self.critic(torch_obs, act)
 
-                    bc_value = self.critic(torch_obs,bc_act)
-                    critic_value = self.critic(torch_obs,act)
-                    critic_std_sum += critic_value.std()
+                    # produce a scalar summary for this step (use median to be robust)
+                    # If critic_value has multiple elements (e.g., ensemble or batch), median is meaningful.
+                    try:
+                        bc_median = bc_value.median().squeeze()
+                    except Exception:
+                        # fallback if median not available
+                        bc_median = bc_value.view(-1).mean().squeeze()
 
+                    try:
+                        critic_median = critic_value.median().squeeze()
+                    except Exception:
+                        critic_median = critic_value.view(-1).mean().squeeze()
 
-                thresh_val = critic_value.median()-self.replay_buffer.std_scale*critic_value.std()
-                bc_thresh_val = bc_value.median()
+                    # store the scalar medians into the sliding window
+                    recent_critic_medians.append(critic_median.detach().cpu())
 
-                critic_val += thresh_val
-                bc_critic_val += bc_thresh_val
+                    # compute running std over the recent window (if more than 1 sample)
+                    if len(recent_critic_medians) > 1:
+                        stacked = torch.stack([torch.tensor(x) for x in recent_critic_medians])
+                        running_std = stacked.std(unbiased=False).to(critic_median.device)
+                    else:
+                        running_std = torch.tensor(0.0, device=critic_median.device)
 
-                if bc_thresh_val > thresh_val:
-                    bc_steps+=1
-                    act = bc_act
-                    np_act = act.cpu().detach().numpy()
+                    # accumulate for episode-mean reporting
+                    critic_std_sum += running_std
+                    critic_val_accum += critic_median
+                    bc_critic_val += bc_median
+
+                    # threshold for switching uses current step's running_std
+                    thresh_val = critic_median - self.replay_buffer.std_scale * running_std
+                    bc_thresh_val = bc_median
+
+                    # perform switching decision per-step (same logic as before)
+                    if bc_thresh_val > thresh_val:
+                        #print(f"Switching to BC action at step {total_steps} with threshold {thresh_val:.4f} vs BC median {bc_thresh_val:.4f}")
+                        bc_steps += 1
+                        act = bc_act
+                        np_act = act.cpu().detach().numpy()
+
             else:
+                # policy_stitch disabled: still compute critic median and update running buffer
                 with torch.no_grad():
-                    torch_obs = torch.tensor(obs,dtype=torch.float).to(device=self.device)
-                    critic_value = self.critic(torch_obs,act)
-                    critic_std_sum += critic_value.std()
+                    torch_obs = torch.tensor(obs, dtype=torch.float).to(device=self.device)
+                    critic_value = self.critic(torch_obs, act)
+                    try:
+                        critic_median = critic_value.median().squeeze()
+                    except Exception:
+                        critic_median = critic_value.view(-1).mean().squeeze()
 
-            next_obs, reward, done, trunc, info = env.step(np_act.squeeze())
-            dones = done | trunc
+                    recent_critic_medians.append(critic_median.detach().cpu())
+
+                    if len(recent_critic_medians) > 1:
+                        stacked = torch.stack([torch.tensor(x) for x in recent_critic_medians])
+                        running_std = stacked.std(unbiased=False).to(critic_median.device)
+                    else:
+                        running_std = torch.tensor(0.0, device=critic_median.device)
+
+                    critic_std_sum += running_std
+                    critic_val_accum += critic_median
+
+            # step the environment with robust unpacking (works with gym and gymnasium)
+            step_result = env.step(np_act.squeeze())
+            if len(step_result) == 5:
+                next_obs, reward, terminated, truncated, info = step_result
+                done = bool(terminated or truncated)
+                trunc = bool(truncated)
+            else:
+                next_obs, reward, done, info = step_result
+                trunc = False
+
+            dones = bool(done or trunc)
             total_reward += reward
 
             obs = next_obs
             if config_dict['normalise_state']:
-                obs = (obs - self.replay_buffer.mean)/self.replay_buffer.std
+                obs = (obs - self.replay_buffer.mean) / self.replay_buffer.std
 
+        # prevent division by zero
+        if total_steps > 0:
+            # critic_std_sum is sum of tensors (or floats) — ensure numeric scalar
+            try:
+                mean_critic_std = (critic_std_sum / total_steps).detach().cpu().item()
+            except Exception:
+                # if critic_std_sum is a float
+                mean_critic_std = float(critic_std_sum / total_steps)
+        else:
+            mean_critic_std = 0.0
 
-        mean_critic_std = (critic_std_sum/total_steps).detach().cpu().item()
-        print('mean critic_std over episode:',critic_std_sum/total_steps)
-        avg_bc = bc_steps/total_steps*100
+        # print a nice diagnostic
+        print('mean critic_std over episode:', mean_critic_std)
+
+        # percent of steps where BC was used (0-100)
+        avg_bc = bc_steps / total_steps * 100 if total_steps > 0 else 0.0
         return total_reward, avg_bc, mean_critic_std
 
     def train_online(self, config_dict, normalise_state=True):
