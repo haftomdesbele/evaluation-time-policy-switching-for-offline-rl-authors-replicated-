@@ -17,6 +17,7 @@ rm mujoco210-linux-x86_64.tar.gz
 3. Modified from the authors,   these lines of codes for gym in base_agent(evaluate_performance)
 
 conda env create -f environment.yml
+
 conda activate rlenv
 
 ## Running code
