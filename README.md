@@ -8,9 +8,13 @@ sudo apt install libosmesa6-dev libgl1-mesa-glx libglfw3 libglfw3-dev patchelf
 2.Make sure you have downloaded MuJoCo 2.1.0 and placed it in ~/.mujoco/mujoco210.
 
 mkdir -p ~/.mujoco
+
 cd ~/.mujoco
+
 wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz
+
 tar -xvzf mujoco210-linux-x86_64.tar.gz
+
 rm mujoco210-linux-x86_64.tar.gz
 
 
